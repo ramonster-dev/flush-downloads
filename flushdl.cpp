@@ -1,8 +1,10 @@
 #include "file_handler.hpp"
+#include <iostream>
 
 int main() {
-  FileHandler<std::string> file_handler;
-  file_handler.display_files();
+  FileHandler file_handler;
+
+  return 0;
 }
 
 

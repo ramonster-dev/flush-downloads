@@ -1,73 +1,107 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <string.h>
 #include <stdio.h>
-#include <dirent.h>
+#include <filesystem>
 #include <typeinfo>
+#include <windows.h>
+#include <lmcons.h>
 
-template<typename T>
+namespace fs = std::filesystem;
+
 class FileHandler {
   private:
-    DIR* dir;
-    struct dirent* diread;
-    std::vector<dirent*> files;
-    std::string str_path;
+    std::vector<std::string> files;
+    std::string user;
+    std::string str_dir;
     
   public:
     FileHandler(); //Initialise directories
     ~FileHandler();
-    void init_dir(); //Creating directory path
-    void init_files(); //Add files to vector for deletion
+
+  private:
+    std::string get_user();
+    std::string get_dir();
+    void init_files();
+    void delete_files();
     void display_files();
-    void confirm_deletion(); //User confirmation
+    char confirm_deletion();
 };
 
-template <typename T>
-FileHandler<T>::FileHandler() {
-  //Initialising directory path
-  init_dir();
+
+FileHandler::FileHandler() {
+  user = get_user();
+  str_dir = get_dir();
   init_files();
+  delete_files();
 }
 
-template <typename T>
-FileHandler<T>::~FileHandler() {
+
+FileHandler::~FileHandler() {
 }
 
-template <typename T>
-void FileHandler<T>::init_dir() {
-  std::string user = getenv("USER");
-  str_path = "/Users/" + user + "/Downloads/";
-  char path_arr[str_path.length() + 1];
-  strcpy(path_arr, str_path.c_str());
 
-  dir = opendir(path_arr);
-}
-
-template <typename T>
-void FileHandler<T>::init_files() {
-  if (dir != nullptr) {
-    while ((diread = readdir(dir)) != nullptr) {
-      char first_char = diread->d_name[0];
-      if (first_char != '.') { //Checking to make sure we only delete non-hidden files
-        files.push_back(diread);
-      }
-    }
-    closedir(dir);
-  } else {
-    perror("Either nothing is in your Downloads/ folder at the moment or the directory is incorrect.");
+void FileHandler::init_files() {
+  for (const auto& entry : fs::directory_iterator(str_dir)) {
+    files.push_back(entry.path().u8string());
   }
+}
+
+void FileHandler::delete_files() {
+  display_files();
+  
+  char usr_in = confirm_deletion();
+  if (usr_in == 'y' || usr_in == 'Y') {
+    for (auto file : files) {
+      char file_arr[file.length() + 1];
+      strcpy(file_arr, file.c_str());
+      remove(file_arr);
+    }
+    std::cout << "Flushed." << std::endl;
+  } else {
+    exit(1);
+  }
+
+}
+
+char FileHandler::confirm_deletion() {
+  char usr_in;
+  std::cout << "Would you like to flush your Downloads/ directory? [y]/[n]";
+  std::cin >> usr_in;
+
+  return usr_in;
 }
   
-template <typename T>
-void FileHandler<T>::display_files() {
-  std::cout << "There are " << files.size() << " files in your " << str_path << " folder." << std::endl; 
+
+void FileHandler::display_files() {
+  std::cout << "There are " << files.size() << " files in your " << str_dir << " folder." << std::endl; 
   for (auto file : files) {
-    std::cout << file->d_name << std::endl;
+    std::cout << file << std::endl;
   }
 }
 
-template <typename T>
-void FileHandler<T>::confirm_deletion() {
+std::string FileHandler::get_user() {
+  #ifdef _WIN64
+    char user[UNLEN + 1]{};
+    DWORD user_len = UNLEN + 1;
+    ::GetUserNameA(user, &user_len);
+    return user;
+  #elif __APPLE__ || __MACH__
+    return getenv("USER");
+  #elif __linux__
+    return getenv("USERNAME");
+  #endif
+}
+
+std::string FileHandler::get_dir() {
+  #ifdef _WIN64
+    return "C:\\Users\\" + user + "\\Downloads\\";
+  #elif __APPLE__ || __MACH__
+    return "/Users/" + user + "/Downloads/";
+  #elif __linux__
+    return "/home/" + user + "/Downloads/";
+  #endif
 }
 
 
